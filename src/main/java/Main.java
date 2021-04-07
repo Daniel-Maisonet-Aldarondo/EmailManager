@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -83,9 +84,22 @@ public class Main{
 		*/
 		String user = "me";
 
-        ListMessagesResponse list = service.users().messages().list(user).setMaxResults(1000L).execute();
+//        ListMessagesResponse list = service.users().messages().list(user).setMaxResults(50000L).execute();
+        ListMessagesResponse response = service.users().messages().list("me").execute();
 
-        List<Message> messages = list.getMessages();
+        List<Message> messages = new ArrayList<Message>();
+        while (response.getMessages() != null) {
+            messages.addAll(response.getMessages());
+            if (response.getNextPageToken() != null) {
+                String pageToken = response.getNextPageToken();
+                response = service.users().messages().list("me").setPageToken(pageToken).execute();
+            } else {
+                break;
+            }
+        }
+
+
+//        List<Message> messages = list.getMessages();
         System.out.println("messages : " + messages.size());
 
         for(Message message : messages) {
