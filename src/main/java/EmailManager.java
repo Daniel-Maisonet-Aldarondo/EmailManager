@@ -41,16 +41,10 @@ public class EmailManager {
                 .build();
 		final String user = "me";
 
-//        List<Message> messages = retrieveMessageQuery(service, "", user);
-////        List<Message> messages = list.getMessages();
-//        displayMessageHeaders(service, messages, user);
         boolean running = true;
         while(running) {
             running = run(service, user);
         }
-
-
-
     }
 
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
@@ -89,10 +83,12 @@ public class EmailManager {
 
     private static void deleteMessages(Gmail service, List<Message> messages, String user) throws IOException {
         int numberOfMessages = messages.size();
-        for(Message m : messages) {
-            service.users().messages().delete(user, m.getId()).execute();
+        if(conformation(numberOfMessages)) {
+            for(Message m : messages) {
+                service.users().messages().delete(user, m.getId()).execute();
+            }
+            System.out.println("Messages deleted: " + numberOfMessages);
         }
-        System.out.println("Messages deleted: " + numberOfMessages);
     }
 
     private static void trashMessages(Gmail service, List<Message> messages, String user) throws IOException {
@@ -127,25 +123,31 @@ public class EmailManager {
 
     private static boolean run(Gmail service, String user) throws IOException{
         List<Message> messages;
-        System.out.println("1. List messages with query\n" +
-                "2.Delete messages with query\n" +
-                "3. Trash messages with query\n" +
+        String selection;
+        String query;
+        System.out.println("1.List messages with query\n" +
+                "2.Delete all messages with query\n" +
+                "3.Trash all messages with query\n" +
                 "4.Close program");
-        System.out.println("Please make a selection... ");
-        java.util.Scanner sc = new java.util.Scanner(System.in);
-        String selection = sc.nextLine();
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Please make a selection: ");
+        selection = sc.nextLine();
 
         switch(selection) {
             case "1":
-                String query = getQuery();
+                query = getQuery();
                 messages = retrieveMessageQuery(service, query, user);
                 displayMessageHeaders(service,messages,user);
                 return true;
             case "2":
-                //delete messages with quer
+                query = getQuery();
+                messages = retrieveMessageQuery(service, query, user);
+                deleteMessages(service,messages, user);
                 return true;
             case "3":
-                //trash messages with q
+                query = getQuery();
+                messages = retrieveMessageQuery(service, query, user);
+                trashMessages(service,messages,user);
                 return true;
             case "4":
                 System.out.println("Bye Bye");
@@ -156,9 +158,10 @@ public class EmailManager {
         }
     }
 
-    private static boolean conformation() {
+    private static boolean conformation(int size) {
         Scanner sc = new Scanner(System.in);
-        System.out.print("Are you sure?(Y/N)");
+        System.out.print("You are about to delete " + size + " message(s)\n" +
+                "Are you sure?(Y/N)");
         String choice = sc.nextLine();
         if(choice.toLowerCase().equals("y")) {
             return true;
