@@ -90,6 +90,27 @@ public class EmailManager {
             System.out.println("Messages deleted: " + numberOfMessages);
         }
     }
+    //create a que of specific messages to delete or trash
+    private static List<Message> queMessage(List<Message> messages) {
+        List<Message> que = new ArrayList<>();
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Please enter the number(s) of the email you would like to delete(ex 1 2 3 12): ");
+        String output = sc.nextLine();
+        String[] indexes = output.split(" ");
+        for(String index : indexes) {
+            que.add(messages.get(Integer.valueOf(index) - 1));
+        }
+
+        return que;
+    }
+    //deleting messages one by one
+    private static void deleteMessages(Gmail service, String user) throws IOException {
+        String query = getQuery();
+        List<Message> messages = retrieveMessageQuery(service, query, user);
+        displayMessageHeaders(service, messages, user);
+        List<Message> messagesToDelete = queMessage(messages);
+        deleteMessages(service,messages, user);
+    }
 
     private static void trashMessages(Gmail service, List<Message> messages, String user) throws IOException {
         int numberOfMessages = messages.size();
@@ -100,6 +121,7 @@ public class EmailManager {
     }
 
     private static void displayMessageHeaders(Gmail service, List<Message> messages, String user) throws IOException {
+        int count = 0;
         System.out.println("messages : " + messages.size());
         for(Message message : messages) {
             Message msg = service.users().messages().get(user,message.getId()).setFormat("full").execute();
@@ -111,7 +133,8 @@ public class EmailManager {
                     System.out.println(header.getName() + ":" + header.getValue());
                 }
             }
-            System.out.println("============================================");
+            count++;
+            System.out.println("====================" + count + "========================");
         }
     }
 
@@ -127,8 +150,9 @@ public class EmailManager {
         String query;
         System.out.println("1.List messages with query\n" +
                 "2.Delete all messages with query\n" +
-                "3.Trash all messages with query\n" +
-                "4.Close program");
+                "3.Delete specific messages with query\n" +
+                "4.Trash all messages with query\n" +
+                "5.Close program");
         Scanner sc = new Scanner(System.in);
         System.out.print("Please make a selection: ");
         selection = sc.nextLine();
@@ -145,11 +169,15 @@ public class EmailManager {
                 deleteMessages(service,messages, user);
                 return true;
             case "3":
+                deleteMessages(service,user);
+                return true;
+            case "4":
                 query = getQuery();
                 messages = retrieveMessageQuery(service, query, user);
                 trashMessages(service,messages,user);
                 return true;
-            case "4":
+            case "5":
+                sc.close();
                 System.out.println("Bye Bye");
                 return false;
             default:
