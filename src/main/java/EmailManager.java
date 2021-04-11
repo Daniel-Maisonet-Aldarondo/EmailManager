@@ -109,7 +109,7 @@ public class EmailManager {
         List<Message> messages = retrieveMessageQuery(service, query, user);
         displayMessageHeaders(service, messages, user);
         List<Message> messagesToDelete = queMessage(messages);
-        deleteMessages(service,messages, user);
+        deleteMessages(service,messagesToDelete, user);
     }
 
     private static void trashMessages(Gmail service, List<Message> messages, String user) throws IOException {
