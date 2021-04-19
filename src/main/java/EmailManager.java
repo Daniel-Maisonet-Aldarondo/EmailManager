@@ -20,8 +20,9 @@ import java.security.GeneralSecurityException;
 import java.util.*;
 
 
+
 public class EmailManager {
-    private static final String APPLICATION_NAME = "Termail Email Manager";
+    private static final String APPLICATION_NAME = "Terminal Email Manager";
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
 
@@ -39,12 +40,14 @@ public class EmailManager {
         Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
                 .setApplicationName(APPLICATION_NAME)
                 .build();
-		final String user = "me";
+		    final String user = "me";
 
         boolean running = true;
         while(running) {
             running = run(service, user);
         }
+
+
     }
 
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
@@ -90,11 +93,11 @@ public class EmailManager {
             System.out.println("Messages deleted: " + numberOfMessages);
         }
     }
-    //create a que of specific messages to delete or trash
+    //create a que of specific messages to delete or trash or untrash
     private static List<Message> queMessage(List<Message> messages) {
         List<Message> que = new ArrayList<>();
         Scanner sc = new Scanner(System.in);
-        System.out.print("Please enter the number(s) of the email you would like to delete(ex 1 2 3 12): ");
+        System.out.print("Please enter the number(s) of the email you would like to que(ex 1 2 3 12): ");
         String output = sc.nextLine();
         String[] indexes = output.split(" ");
         for(String index : indexes) {
@@ -118,6 +121,37 @@ public class EmailManager {
             service.users().messages().trash(user, m.getId()).execute();
         }
         System.out.println("Messages trashed: " + numberOfMessages);
+    }
+    private static void untrashMessages(Gmail service, String user) throws IOException {
+        List<String> labels = new ArrayList<>();
+        labels.add("TRASH");
+
+        //default size for query is 100 messages
+        ListMessagesResponse response = service.users().messages().list(user).setLabelIds(labels).execute();
+        List<Message> messages = response.getMessages();
+        displayMessageHeaders(service,messages,user);
+        List<Message> messagesToUntrash = queMessage(messages);
+        untrash(service,messagesToUntrash,user);
+    }
+
+    private static void untrash(Gmail service, List<Message> messages, String user) throws IOException{
+        for(Message message: messages) {
+            service.users().messages().untrash(user, message.getId()).execute();
+        }
+        System.out.println("You've untrashed " + messages.size() + " message(s)!");
+    }
+
+    private static void deleteTrashMessages(Gmail service, String user) throws IOException {
+        //we only want the messages withing these folders
+        List<String> labels = new ArrayList<>();
+        labels.add("TRASH");
+
+        //default size for query is 100 messages
+        ListMessagesResponse response = service.users().messages().list(user).setLabelIds(labels).execute();
+        List<Message> messages = response.getMessages();
+        //delete messages
+        displayMessageHeaders(service,messages,user);
+        deleteMessages(service,messages,user);
     }
 
     private static void displayMessageHeaders(Gmail service, List<Message> messages, String user) throws IOException {
@@ -152,7 +186,9 @@ public class EmailManager {
                 "2.Delete all messages with query\n" +
                 "3.Delete specific messages with query\n" +
                 "4.Trash all messages with query\n" +
-                "5.Close program");
+                "5.Delete 100 messages from trash/spam\n" +
+                "6.Untrash specific messages\n" +
+                "7.Close program");
         Scanner sc = new Scanner(System.in);
         System.out.print("Please make a selection: ");
         selection = sc.nextLine();
@@ -176,7 +212,13 @@ public class EmailManager {
                 messages = retrieveMessageQuery(service, query, user);
                 trashMessages(service,messages,user);
                 return true;
-            case "5":
+            case "5" :
+                deleteTrashMessages(service, user);
+                return true;
+            case "6":
+                untrashMessages(service,user);
+                return true;
+            case "7":
                 sc.close();
                 System.out.println("Bye Bye");
                 return false;
