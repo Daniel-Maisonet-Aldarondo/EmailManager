@@ -7,17 +7,18 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.Base64;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.GmailScopes;
 import com.google.api.services.gmail.model.*;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.security.GeneralSecurityException;
 import java.util.*;
+
+import util.DBConnector;
+import util.Email;
 
 
 
@@ -40,14 +41,83 @@ public class EmailManager {
         Gmail service = new Gmail.Builder(HTTP_TRANSPORT, JSON_FACTORY, getCredentials(HTTP_TRANSPORT))
                 .setApplicationName(APPLICATION_NAME)
                 .build();
-		    final String user = "me";
-
+        final String user = "me";
+        final DBConnector conn = new DBConnector();
         boolean running = true;
         while(running) {
-            running = run(service, user);
+            running = run(service, user, conn);
         }
 
 
+    }
+
+    private static boolean run(Gmail service, String user, DBConnector conn) throws IOException{
+        List<Message> messages;
+        String selection;
+        String query;
+        System.out.println("1.List messages with query\n" +
+                "2.Delete all messages with query\n" +
+                "3.Delete specific messages with query\n" +
+                "4.Trash all messages with query\n" +
+                "5.Delete 100 messages from trash/spam\n" +
+                "6.Untrash specific messages\n" +
+                "7.Display Backups\n" +
+                "8.Close program");
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Please make a selection: ");
+        selection = sc.nextLine();
+
+        switch(selection) {
+            case "1":
+                query = getQuery();
+                messages = retrieveMessageQuery(service, query, user);
+                displayMessageHeaders(service,messages,user);
+                return true;
+            case "2":
+                query = getQuery();
+                messages = retrieveMessageQuery(service, query, user);
+                deleteMessages(service,messages, user, conn);
+                return true;
+            case "3":
+                deleteMessages(service,user, conn);
+                return true;
+            case "4":
+                query = getQuery();
+                messages = retrieveMessageQuery(service, query, user);
+                trashMessages(service,messages,user);
+                return true;
+            case "5" :
+                deleteTrashMessages(service, user, conn);
+                return true;
+            case "6":
+                untrashMessages(service,user);
+                return true;
+            case "7":
+                getBackups(conn);
+                return true;
+            case "8":
+                sc.close();
+                System.out.println("Bye Bye");
+                return false;
+            default:
+                System.out.println("Invalid choice");
+                return true;
+        }
+    }
+
+    private static boolean conformation(int size) {
+        Scanner sc = new Scanner(System.in);
+        System.out.print("You are about to delete " + size + " message(s)\n" +
+                "Are you sure?(Y/N)");
+        String choice = sc.nextLine();
+        if(choice.toLowerCase().equals("y")) {
+            return true;
+        }else if(choice.toLowerCase().equals("n")) {
+            return false;
+        }else {
+            System.out.println("Invalid choice");
+            return false;
+        }
     }
 
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
@@ -84,9 +154,10 @@ public class EmailManager {
         return messages;
     }
 
-    private static void deleteMessages(Gmail service, List<Message> messages, String user) throws IOException {
+    private static void deleteMessages(Gmail service, List<Message> messages, String user, DBConnector conn) throws IOException {
         int numberOfMessages = messages.size();
         if(conformation(numberOfMessages)) {
+            createBackups(service,messages,user, conn);
             for(Message m : messages) {
                 service.users().messages().delete(user, m.getId()).execute();
             }
@@ -107,12 +178,13 @@ public class EmailManager {
         return que;
     }
     //deleting messages one by one
-    private static void deleteMessages(Gmail service, String user) throws IOException {
+    private static void deleteMessages(Gmail service, String user, DBConnector conn) throws IOException {
         String query = getQuery();
         List<Message> messages = retrieveMessageQuery(service, query, user);
         displayMessageHeaders(service, messages, user);
         List<Message> messagesToDelete = queMessage(messages);
-        deleteMessages(service,messagesToDelete, user);
+        createBackups(service,messagesToDelete,user, conn);
+        deleteMessages(service,messagesToDelete, user, conn);
     }
 
     private static void trashMessages(Gmail service, List<Message> messages, String user) throws IOException {
@@ -141,7 +213,7 @@ public class EmailManager {
         System.out.println("You've untrashed " + messages.size() + " message(s)!");
     }
 
-    private static void deleteTrashMessages(Gmail service, String user) throws IOException {
+    private static void deleteTrashMessages(Gmail service, String user, DBConnector conn) throws IOException {
         //we only want the messages withing these folders
         List<String> labels = new ArrayList<>();
         labels.add("TRASH");
@@ -151,7 +223,7 @@ public class EmailManager {
         List<Message> messages = response.getMessages();
         //delete messages
         displayMessageHeaders(service,messages,user);
-        deleteMessages(service,messages,user);
+        deleteMessages(service,messages,user, conn);
     }
 
     private static void displayMessageHeaders(Gmail service, List<Message> messages, String user) throws IOException {
@@ -178,70 +250,52 @@ public class EmailManager {
         return sc.nextLine();
     }
 
-    private static boolean run(Gmail service, String user) throws IOException{
-        List<Message> messages;
-        String selection;
-        String query;
-        System.out.println("1.List messages with query\n" +
-                "2.Delete all messages with query\n" +
-                "3.Delete specific messages with query\n" +
-                "4.Trash all messages with query\n" +
-                "5.Delete 100 messages from trash/spam\n" +
-                "6.Untrash specific messages\n" +
-                "7.Close program");
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Please make a selection: ");
-        selection = sc.nextLine();
 
-        switch(selection) {
-            case "1":
-                query = getQuery();
-                messages = retrieveMessageQuery(service, query, user);
-                displayMessageHeaders(service,messages,user);
-                return true;
-            case "2":
-                query = getQuery();
-                messages = retrieveMessageQuery(service, query, user);
-                deleteMessages(service,messages, user);
-                return true;
-            case "3":
-                deleteMessages(service,user);
-                return true;
-            case "4":
-                query = getQuery();
-                messages = retrieveMessageQuery(service, query, user);
-                trashMessages(service,messages,user);
-                return true;
-            case "5" :
-                deleteTrashMessages(service, user);
-                return true;
-            case "6":
-                untrashMessages(service,user);
-                return true;
-            case "7":
-                sc.close();
-                System.out.println("Bye Bye");
-                return false;
-            default:
-                System.out.println("Invalid choice");
-                return true;
+    private static void createBackups( Gmail service, List<Message> messages, String user, DBConnector conn) throws IOException {
+        ArrayList<Email> emails = new ArrayList<>();
+        String subject = "", to = "", from = "", body = "";
+        for(Message message : messages) {
+            Message msg = service.users().messages().get(user,message.getId()).setFormat("full").execute();
+            for(MessagePartHeader header : msg.getPayload().getHeaders()) {
+                if(header.getName().contains("Subject")) {
+                    subject = header.getValue().trim();
+                }
+                if(header.getName().equals("To")) {
+                    to = header.getValue().trim();
+                }
+                if(header.getName().equals("From")) {
+                    from = header.getValue().trim();
+                }
+            }
+            body = getMessageBody(service, msg, user);
+            emails.add(new Email(subject,to,from,body));
+
         }
+        conn.updateBackups(emails);
     }
 
-    private static boolean conformation(int size) {
-        Scanner sc = new Scanner(System.in);
-        System.out.print("You are about to delete " + size + " message(s)\n" +
-                "Are you sure?(Y/N)");
-        String choice = sc.nextLine();
-        if(choice.toLowerCase().equals("y")) {
-            return true;
-        }else if(choice.toLowerCase().equals("n")) {
-            return false;
-        }else {
-            System.out.println("Invalid choice");
-            return false;
+    private static String getMessageBody(Gmail service, Message message, String user)  {
+        String body = "";
+        StringBuilder builder = new StringBuilder();
+        try {
+            for (MessagePart part : message.getPayload().getParts()) {
+                if (part.getMimeType().equals("text/plain")) {
+                    builder.append(part.getBody().getData());
+                }
+            }
+            //we need to get the bytes and return string
+            byte[] bytes = Base64.decodeBase64(builder.toString());
+            body = new String(bytes, "UTF-8");
+        }catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
         }
+        return body;
     }
+
+    private static void getBackups(DBConnector conn) {
+        conn.displayBackups();
+    }
+
 
 
 }
