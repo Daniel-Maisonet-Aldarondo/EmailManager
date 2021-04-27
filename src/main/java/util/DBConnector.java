@@ -11,6 +11,7 @@ import org.bson.Document;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 public class DBConnector {
@@ -29,7 +30,8 @@ public class DBConnector {
         MongoCollection<Document> collection = database.getCollection("backups");
         collection.createIndex(Indexes.ascending("date"), new IndexOptions().expireAfter(1L, TimeUnit.DAYS));
         for(Email email: emails) {
-            collection.insertOne(new Document("email", email.toString()));
+            collection.insertOne(new Document("date", new Date())
+			.append("email", email.toString()));
         }
     }
 
